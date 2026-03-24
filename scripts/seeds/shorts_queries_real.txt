@@ -1,0 +1,15 @@
+# One query per line.
+# Run with:
+# python scripts/collect_shorts_urls.py --queries-file scripts/seeds/shorts_queries_real.txt --suggested-label real
+
+home cooking shorts
+street food shorts
+kitchen recipe shorts
+cooking tutorial shorts
+chef shorts
+food vlog shorts
+daily life cooking shorts
+restaurant cooking shorts
+meal prep shorts
+simple recipe shorts
+quick recipe shorts

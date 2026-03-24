@@ -1,0 +1,15 @@
+# One query per line.
+# Run with:
+# python scripts/collect_shorts_urls.py --queries-file scripts/seeds/shorts_queries_generated.txt --suggested-label generated
+
+ai cooking shorts
+ai dog cooking shorts
+ai cat cooking shorts
+ai generated animation shorts
+ai movie trailer shorts
+ai cinematic shorts
+ai vfx shorts
+ai text to video shorts
+ai sora style shorts
+ai fake video shorts
+gen ai shorts

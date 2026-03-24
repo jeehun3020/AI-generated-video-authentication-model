@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Virtualenv
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# Large local datasets
+*.zip
+UCF101-Action Recognition/
+FaceForensics++_C23/
+Celeb_V2/
+VoxCeleb2/
+Final Dataset/
+gen_img/
+
+# Generated data and outputs
+data/raw/
+data/processed/
+data/manifests*/
+outputs/
+
+# Local notebooks / temp
+*.ipynb
+*.log

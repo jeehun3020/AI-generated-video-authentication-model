@@ -1,0 +1,6 @@
+# Query-mined hard-case channels similar to SharpOddity.
+# These are evaluated as held-out hard cases, not training sources.
+
+https://www.youtube.com/channel/UCKchYZqcWZJR4x8eM7BvkBw/shorts
+https://www.youtube.com/channel/UCXHaeEyQB-3Q_GsUvNgHnxw/shorts
+https://www.youtube.com/channel/UCUsTBKrGnTwsrnZuJG27AGQ/shorts

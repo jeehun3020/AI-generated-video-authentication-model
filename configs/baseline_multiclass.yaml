@@ -1,0 +1,105 @@
+seed: 42
+
+paths:
+  processed_faces_dir: data/processed/faces
+  manifests_dir: data/manifests
+  checkpoints_dir: outputs/checkpoints
+  eval_dir: outputs/eval
+  inference_dir: outputs/inference
+
+task:
+  mode: multiclass
+  classes: [real, generated, deepfake]
+  positive_classes: [generated, deepfake]
+
+# TODO: 데이터셋 압축 해제 후 root 경로를 실제 경로로 수정하세요.
+datasets:
+  ucf101:
+    enabled: true
+    parser: ucf101
+    root: UCF101-Action Recognition
+    class_name: real
+
+  voxceleb2:
+    enabled: false
+    parser: voxceleb2
+    root: VoxCeleb2/vox2_dev_mp4
+    class_name: real
+
+  stylegan:
+    enabled: true
+    parser: stylegan
+    root: Final Dataset/Fake
+    class_name: generated
+
+  faceforensicspp:
+    enabled: true
+    parser: faceforensicspp
+    root: FaceForensics++_C23
+    class_name: deepfake
+    include_original_sequences: false
+
+  celebdf:
+    enabled: true
+    parser: celebdf
+    root: Celeb_V2
+    class_name: deepfake
+    include_real: false
+
+split:
+  val_ratio: 0.15
+  test_ratio: 0.15
+  # original_id -> identity_id -> source_id 순서로 그룹 split을 수행해 leakage를 최소화
+  group_priority: [original_id, identity_id, source_id, video_id]
+
+preprocess:
+  target_fps: 2
+  max_frames_per_video: 64
+  image_size: 224
+  fallback_to_full_frame: false
+  detector:
+    name: mtcnn    # TODO: RetinaFace 구현 후 retinaface로 교체
+    device: cpu
+    min_face_size: 40
+    keep_all: true
+    thresholds: [0.6, 0.7, 0.7]
+
+training:
+  device: auto
+  backbone: efficientnet_b0   # convnext_tiny 로 쉽게 교체 가능
+  pretrained: true
+  dropout: 0.35
+  grad_clip_norm: 1.0
+  batch_size: 32
+  num_workers: 4
+  epochs: 20
+  lr: 0.0001
+  weight_decay: 0.0005
+  amp: true
+  monitor: f1
+  loss:
+    label_smoothing: 0.08
+    use_class_weights: true
+  sampling:
+    balanced_sampler: true
+  early_stopping:
+    patience: 4
+    min_delta: 0.001
+  augmentation:
+    hflip_p: 0.5
+    color_jitter: true
+    color_jitter_strength: 0.15
+    random_erasing: true
+    random_erasing_p: 0.3
+
+inference:
+  batch_size: 32
+  aggregation: confidence_mean   # mean | vote | confidence_mean | topk_mean
+  min_confidence: 0.55
+  topk_ratio: 0.5
+  conf_power: 2.0
+
+evaluation:
+  video_aggregation: confidence_mean
+  topk_ratio: 0.5
+  conf_power: 2.0

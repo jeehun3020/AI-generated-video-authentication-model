@@ -1,0 +1,4 @@
+# Held-out hard-case Shorts channels for robustness checks.
+# Keep these channels out of train/val unless explicitly promoting them.
+
+https://www.youtube.com/@SharpOddity/shorts

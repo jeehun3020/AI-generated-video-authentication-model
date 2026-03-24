@@ -1,0 +1,25 @@
+# Real hard-negative discovery queries for Shorts.
+# Goal: find real videos that look synthetic to the current model.
+# Run with:
+# python scripts/collect_shorts_urls.py --queries-file scripts/seeds/shorts_queries_real_hardnegative.txt --suggested-label real --output-csv data/youtube/shorts_urls_queries_real_hardnegative.csv
+
+ultra realistic asmr shorts
+real or fake food shorts
+illusion dessert shorts
+satisfying cutting shorts real
+macro cooking shorts
+resin art shorts real
+glass fruit shorts real
+candy cutting shorts real
+soap carving shorts real
+hyper realistic cake shorts
+oddly satisfying food shorts real
+kinetic sand shorts real
+jelly art shorts real
+sugar craft shorts real
+korean asmr dessert shorts
+miniature cooking shorts real
+street food asmr shorts
+realistic food art shorts
+fruit carving shorts
+mirror glaze cake shorts

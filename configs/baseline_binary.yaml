@@ -1,0 +1,80 @@
+seed: 42
+
+paths:
+  processed_faces_dir: data/processed/faces
+  manifests_dir: data/manifests
+  checkpoints_dir: outputs/checkpoints_binary
+  eval_dir: outputs/eval
+  inference_dir: outputs/inference
+
+task:
+  mode: binary
+  classes: [real, generated, deepfake]
+  positive_classes: [generated, deepfake]
+
+datasets:
+  ucf101:
+    enabled: true
+    parser: ucf101
+    root: UCF101-Action Recognition
+    class_name: real
+
+  voxceleb2:
+    enabled: true
+    parser: voxceleb2
+    root: VoxCeleb2/vox2_dev_mp4
+    class_name: real
+
+  stylegan:
+    enabled: true
+    parser: stylegan
+    root: Final Dataset/Fake
+    class_name: generated
+
+  faceforensicspp:
+    enabled: true
+    parser: faceforensicspp
+    root: FaceForensics++_C23
+    class_name: deepfake
+    include_original_sequences: false
+
+  celebdf:
+    enabled: true
+    parser: celebdf
+    root: Celeb_V2
+    class_name: deepfake
+    include_real: false
+
+split:
+  val_ratio: 0.15
+  test_ratio: 0.15
+  group_priority: [original_id, identity_id, source_id, video_id]
+
+preprocess:
+  target_fps: 2
+  max_frames_per_video: 64
+  image_size: 224
+  fallback_to_full_frame: false
+  detector:
+    name: mtcnn
+    device: auto
+    min_face_size: 40
+    keep_all: true
+    thresholds: [0.6, 0.7, 0.7]
+
+training:
+  device: auto
+  backbone: efficientnet_b0
+  pretrained: true
+  dropout: 0.2
+  batch_size: 32
+  num_workers: 4
+  epochs: 10
+  lr: 0.0001
+  weight_decay: 0.0001
+  amp: true
+  monitor: f1
+
+inference:
+  batch_size: 32
+  aggregation: mean

@@ -1,0 +1,82 @@
+seed: 42
+
+paths:
+  processed_faces_dir: data/processed/faces_shorts_binary
+  manifests_dir: data/manifests_shorts_binary
+  checkpoints_dir: outputs/checkpoints_shorts_binary_fft
+  eval_dir: outputs/eval
+  inference_dir: outputs/inference
+
+task:
+  mode: binary
+  classes: [real, generated]
+  positive_classes: [generated]
+
+datasets:
+  youtube_shorts_real:
+    enabled: true
+    parser: youtube_shorts
+    root: data/raw/youtube_shorts_binary/real
+    class_name: real
+
+  youtube_shorts_generated:
+    enabled: true
+    parser: youtube_shorts
+    root: data/raw/youtube_shorts_binary/generated
+    class_name: generated
+
+split:
+  val_ratio: 0.2
+  test_ratio: 0.0
+  group_priority: [source_id, original_id, identity_id, video_id]
+
+preprocess:
+  target_fps: 1
+  max_frames_per_video: 6
+  image_size: 224
+  fallback_to_full_frame: true
+  detector:
+    name: none
+    device: cpu
+
+training:
+  device: auto
+  backbone: efficientnet_b0
+  pretrained: true
+  dropout: 0.4
+  input_representation: fft
+  grad_clip_norm: 1.0
+  batch_size: 32
+  num_workers: 2
+  epochs: 12
+  lr: 0.0001
+  weight_decay: 0.0005
+  amp: true
+  monitor: f1
+  loss:
+    label_smoothing: 0.05
+    use_class_weights: true
+  sampling:
+    balanced_sampler: true
+  early_stopping:
+    patience: 4
+    min_delta: 0.001
+  augmentation:
+    hflip_p: 0.5
+    color_jitter: false
+    random_erasing: true
+    random_erasing_p: 0.35
+
+inference:
+  batch_size: 32
+  aggregation: confidence_mean
+  input_representation: fft
+  min_confidence: 0.55
+  topk_ratio: 0.5
+  conf_power: 2.0
+
+evaluation:
+  video_aggregation: confidence_mean
+  input_representation: fft
+  topk_ratio: 0.5
+  conf_power: 2.0

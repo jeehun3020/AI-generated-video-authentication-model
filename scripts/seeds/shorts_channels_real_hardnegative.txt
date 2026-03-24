@@ -1,0 +1,5 @@
+# Real Shorts channels that often look AI-generated to the current model.
+# Keep these separate from generic real channels for hard-negative analysis.
+
+https://www.youtube.com/@Jming03/shorts
+https://www.youtube.com/@Jewel_Inside_Me/shorts

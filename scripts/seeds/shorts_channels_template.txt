@@ -1,0 +1,4 @@
+# One channel URL or @handle per line.
+# Examples:
+# https://www.youtube.com/@example_channel
+# @example_channel
