@@ -84,6 +84,13 @@ preprocess:
   image_size: 224
   view_mode: full_frame
   fallback_to_full_frame: true
+  text_mask:
+    enabled: true
+    top_ratio: 0.08
+    bottom_ratio: 0.18
+    left_ratio: 0.0
+    right_ratio: 0.0
+    fill_mode: median
   detector:
     name: none
     device: cpu
@@ -115,6 +122,14 @@ training:
     color_jitter: false
     random_erasing: true
     random_erasing_p: 0.35
+    text_mask_aug:
+      enabled: true
+      p: 0.6
+      top_ratio_range: [0.0, 0.10]
+      bottom_ratio_range: [0.08, 0.24]
+      left_ratio_range: [0.0, 0.0]
+      right_ratio_range: [0.0, 0.0]
+      fill_mode: median
 
 inference:
   batch_size: 32

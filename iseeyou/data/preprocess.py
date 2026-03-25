@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from iseeyou.config import ensure_dir
 from iseeyou.constants import build_task_spec
+from iseeyou.utils.masking import apply_text_mask_np
 from iseeyou.utils.video import iter_video_frames, resize_image
 
 from .adapters import RawSample, collect_samples_from_config
@@ -168,6 +169,7 @@ def _process_video_sample(
     image_size = preprocess_cfg["image_size"]
     fallback_to_full_frame = preprocess_cfg.get("fallback_to_full_frame", False)
     view_mode = preprocess_cfg.get("view_mode", "detector_crop")
+    text_mask_cfg = preprocess_cfg.get("text_mask", {})
 
     for frame_idx, frame_rgb in iter_video_frames(sample.path, target_fps, max_frames):
         frame_view = _extract_frame_view(frame_rgb, detector, fallback_to_full_frame, view_mode=view_mode)
@@ -175,6 +177,7 @@ def _process_video_sample(
             stats.skipped_no_face += 1
             continue
 
+        frame_view = apply_text_mask_np(frame_view, text_mask_cfg)
         frame_view = resize_image(frame_view, image_size)
 
         out_path = (
@@ -217,6 +220,7 @@ def _process_image_sample(
     image_size = preprocess_cfg["image_size"]
     fallback_to_full_frame = preprocess_cfg.get("fallback_to_full_frame", False)
     view_mode = preprocess_cfg.get("view_mode", "detector_crop")
+    text_mask_cfg = preprocess_cfg.get("text_mask", {})
 
     image_rgb = np.array(Image.open(sample.path).convert("RGB"))
     face_crop = _extract_frame_view(image_rgb, detector, fallback_to_full_frame, view_mode=view_mode)
@@ -225,6 +229,7 @@ def _process_image_sample(
         stats.skipped_no_face += 1
         return []
 
+    face_crop = apply_text_mask_np(face_crop, text_mask_cfg)
     face_crop = resize_image(face_crop, image_size)
 
     out_path = (

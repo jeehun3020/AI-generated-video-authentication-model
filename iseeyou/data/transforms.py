@@ -3,6 +3,7 @@ from __future__ import annotations
 from torchvision import transforms
 
 from .frequency import convert_representation, validate_representation
+from iseeyou.utils.masking import RandomBandMask
 
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -29,6 +30,7 @@ def build_train_transform(
     color_jitter_strength = float(aug_cfg.get("color_jitter_strength", 0.1))
     random_erasing = bool(aug_cfg.get("random_erasing", True))
     random_erasing_p = float(aug_cfg.get("random_erasing_p", 0.25))
+    text_mask_aug = aug_cfg.get("text_mask_aug", {}) or {}
 
     transform_steps = [
         transforms.Resize((image_size, image_size)),
@@ -43,6 +45,18 @@ def build_train_transform(
                 contrast=color_jitter_strength,
                 saturation=color_jitter_strength,
                 hue=min(0.5 * color_jitter_strength, 0.05),
+            )
+        )
+
+    if bool(text_mask_aug.get("enabled", False)):
+        transform_steps.append(
+            RandomBandMask(
+                p=float(text_mask_aug.get("p", 0.0)),
+                top_ratio_range=tuple(text_mask_aug.get("top_ratio_range", [0.0, 0.0])),
+                bottom_ratio_range=tuple(text_mask_aug.get("bottom_ratio_range", [0.0, 0.0])),
+                left_ratio_range=tuple(text_mask_aug.get("left_ratio_range", [0.0, 0.0])),
+                right_ratio_range=tuple(text_mask_aug.get("right_ratio_range", [0.0, 0.0])),
+                fill_mode=str(text_mask_aug.get("fill_mode", "median")),
             )
         )
 

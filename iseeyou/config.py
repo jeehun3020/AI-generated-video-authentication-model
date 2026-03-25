@@ -25,6 +25,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "image_size": 224,
         "view_mode": "detector_crop",
         "fallback_to_full_frame": False,
+        "text_mask": {
+            "enabled": False,
+            "top_ratio": 0.0,
+            "bottom_ratio": 0.0,
+            "left_ratio": 0.0,
+            "right_ratio": 0.0,
+            "fill_mode": "median",
+        },
         "detector": {
             "name": "mtcnn",
             "device": "auto",
@@ -62,6 +70,15 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "color_jitter_strength": 0.12,
             "random_erasing": True,
             "random_erasing_p": 0.25,
+            "text_mask_aug": {
+                "enabled": False,
+                "p": 0.0,
+                "top_ratio_range": [0.0, 0.0],
+                "bottom_ratio_range": [0.0, 0.0],
+                "left_ratio_range": [0.0, 0.0],
+                "right_ratio_range": [0.0, 0.0],
+                "fill_mode": "median",
+            },
         },
     },
     "inference": {

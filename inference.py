@@ -20,6 +20,7 @@ from iseeyou.data.preprocess import _extract_face_or_full_frame
 from iseeyou.data.transforms import build_eval_transform
 from iseeyou.engine.evaluator import load_model_from_checkpoint
 from iseeyou.utils.aggregation import aggregate_probs
+from iseeyou.utils.masking import apply_text_mask_np
 from iseeyou.utils.video import iter_video_frames, resize_image
 from iseeyou.utils.youtube import (
     find_downloaded_video_by_url,
@@ -234,6 +235,7 @@ def extract_faces_from_video(video_path: str | Path, config: dict) -> list[tuple
     max_frames = preprocess_cfg.get("max_frames_per_video")
     image_size = preprocess_cfg["image_size"]
     fallback_to_full_frame = preprocess_cfg.get("fallback_to_full_frame", False)
+    text_mask_cfg = preprocess_cfg.get("text_mask", {})
 
     face_crops: list[tuple[int, np.ndarray]] = []
     for frame_idx, frame_rgb in iter_video_frames(video_path, target_fps, max_frames):
@@ -241,6 +243,7 @@ def extract_faces_from_video(video_path: str | Path, config: dict) -> list[tuple
         if crop is None:
             continue
 
+        crop = apply_text_mask_np(crop, text_mask_cfg)
         crop = resize_image(crop, image_size)
         face_crops.append((frame_idx, crop))
 

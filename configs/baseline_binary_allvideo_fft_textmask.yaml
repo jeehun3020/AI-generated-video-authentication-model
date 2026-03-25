@@ -1,9 +1,9 @@
 seed: 42
 
 paths:
-  processed_faces_dir: data/processed/faces_allvideo_binary
-  manifests_dir: data/manifests_allvideo_binary
-  checkpoints_dir: outputs/checkpoints_allvideo_binary
+  processed_faces_dir: data/processed/faces_allvideo_binary_textmask
+  manifests_dir: data/manifests_allvideo_binary_textmask
+  checkpoints_dir: outputs/checkpoints_allvideo_binary_textmask_fft_textmask
   eval_dir: outputs/eval
   inference_dir: outputs/inference
 
@@ -100,7 +100,7 @@ training:
   backbone: efficientnet_b0
   pretrained: true
   dropout: 0.4
-  input_representation: rgb
+  input_representation: fft
   grad_clip_norm: 1.0
   batch_size: 32
   num_workers: 2
@@ -119,8 +119,7 @@ training:
     min_delta: 0.001
   augmentation:
     hflip_p: 0.5
-    color_jitter: true
-    color_jitter_strength: 0.2
+    color_jitter: false
     random_erasing: true
     random_erasing_p: 0.35
     text_mask_aug:
@@ -135,13 +134,13 @@ training:
 inference:
   batch_size: 32
   aggregation: confidence_mean
-  input_representation: rgb
+  input_representation: fft
   min_confidence: 0.55
   topk_ratio: 0.5
   conf_power: 2.0
 
 evaluation:
   video_aggregation: confidence_mean
-  input_representation: rgb
+  input_representation: fft
   topk_ratio: 0.5
   conf_power: 2.0

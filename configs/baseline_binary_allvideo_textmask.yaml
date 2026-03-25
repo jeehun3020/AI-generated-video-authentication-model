@@ -1,9 +1,9 @@
 seed: 42
 
 paths:
-  processed_faces_dir: data/processed/faces_allvideo_binary
-  manifests_dir: data/manifests_allvideo_binary
-  checkpoints_dir: outputs/checkpoints_allvideo_binary
+  processed_faces_dir: data/processed/faces_allvideo_binary_textmask
+  manifests_dir: data/manifests_allvideo_binary_textmask
+  checkpoints_dir: outputs/checkpoints_allvideo_binary_textmask
   eval_dir: outputs/eval
   inference_dir: outputs/inference
 

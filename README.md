@@ -252,3 +252,24 @@ python train_temporal.py --config configs/temporal_binary_allvideo.yaml
 python train.py --config configs/baseline_binary_allvideo_fft.yaml
 bash scripts/run_allvideo_multicue_tuning.sh
 ```
+
+## Text-Mask 실험
+
+Shorts 영상의 자막, 제목, 워터마크 같은 텍스트 bias를 줄이기 위해 `text-mask` 실험 트랙을 추가했습니다.
+
+핵심 아이디어:
+- 전처리에서 상단/하단 밴드를 마스킹해 텍스트 정보 약화
+- 학습 augmentation에서 랜덤 밴드 마스킹 추가
+- 모델이 텍스트보다 배경, 인물, 물체, 질감, 움직임을 더 보도록 유도
+
+관련 설정:
+- `configs/baseline_binary_allvideo_textmask.yaml`
+- `configs/temporal_binary_allvideo_textmask.yaml`
+- `configs/baseline_binary_allvideo_fft_textmask.yaml`
+
+관련 코드:
+- `iseeyou/utils/masking.py`
+- `iseeyou/data/preprocess.py`
+- `iseeyou/data/transforms.py`
+- `inference.py`
+- `inference_ensemble.py`
