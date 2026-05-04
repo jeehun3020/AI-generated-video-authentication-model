@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate low-FPR operating points and calibration")
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--checkpoint", type=str, default="")
-    parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"])
+    parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test", "ff_holdout", "df_holdout"])
     parser.add_argument("--video-aggregation", type=str, default="")
     parser.add_argument("--bins", type=int, default=10)
     parser.add_argument(
@@ -38,6 +38,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Optional protocol video_manifest.csv override",
+    )
+    parser.add_argument(
+        "--tta",
+        type=str,
+        default="none",
+        choices=["none", "hflip"],
+        help="Test-time augmentation. 'hflip' averages softmax over original + horizontal flip.",
     )
     return parser.parse_args()
 
@@ -56,6 +63,7 @@ def collect_predictions(
     model: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
+    tta: str = "none",
 ) -> tuple[np.ndarray, np.ndarray, list[str]]:
     model.eval()
     y_true_list = []
@@ -66,6 +74,9 @@ def collect_predictions(
             images = batch["image"].to(device, non_blocking=True)
             labels = batch["label"].to(device, non_blocking=True)
             probs = torch.softmax(model(images), dim=1)
+            if tta == "hflip":
+                probs_flip = torch.softmax(model(torch.flip(images, dims=[-1])), dim=1)
+                probs = (probs + probs_flip) * 0.5
             y_true_list.append(labels.cpu().numpy())
             y_prob_list.append(probs.cpu().numpy())
             video_ids.extend(list(batch["video_id"]))
@@ -205,7 +216,7 @@ def main() -> None:
         device=device,
     )
 
-    y_true, y_prob, video_ids = collect_predictions(model, loader, device)
+    y_true, y_prob, video_ids = collect_predictions(model, loader, device, tta=args.tta)
 
     video_agg = args.video_aggregation or eval_cfg.get("video_aggregation", "mean")
     y_true_video, y_prob_video = build_video_level_predictions(
@@ -220,6 +231,7 @@ def main() -> None:
     payload = {
         "split": args.split,
         "video_aggregation": video_agg,
+        "tta": args.tta,
         "num_frames": int(len(y_true)),
         "num_videos": int(len(y_true_video)),
         "frame": summarize_binary_operating_points(y_true, y_prob, bins=args.bins),
@@ -228,7 +240,8 @@ def main() -> None:
 
     eval_dir = ensure_dir(config["paths"].get("eval_dir", "outputs/eval"))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_path = eval_dir / f"operating_{args.split}_{timestamp}.json"
+    tta_tag = "" if args.tta == "none" else f"_tta-{args.tta}"
+    out_path = eval_dir / f"operating_{args.split}{tta_tag}_{timestamp}.json"
     out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(json.dumps(payload, indent=2))
     print(f"[INFO] saved operating-point report: {out_path}")

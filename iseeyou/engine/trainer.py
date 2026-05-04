@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import math
 from dataclasses import asdict
@@ -20,6 +21,51 @@ def _amp_enabled(device: torch.device, requested_amp: bool) -> bool:
     return bool(requested_amp and device.type == "cuda")
 
 
+class ModelEMA:
+    """Exponential moving average of model weights, stored on the same device as the source model."""
+
+    def __init__(self, model: torch.nn.Module, decay: float = 0.999) -> None:
+        self.decay = float(decay)
+        self.module = copy.deepcopy(model).eval()
+        for p in self.module.parameters():
+            p.requires_grad_(False)
+
+    @torch.no_grad()
+    def update(self, model: torch.nn.Module) -> None:
+        msd = model.state_dict()
+        for k, v in self.module.state_dict().items():
+            if v.dtype.is_floating_point:
+                v.mul_(self.decay).add_(msd[k].detach(), alpha=1.0 - self.decay)
+            else:
+                v.copy_(msd[k])
+
+    def state_dict(self) -> dict[str, Any]:
+        return self.module.state_dict()
+
+    def load_state_dict(self, state: dict[str, Any]) -> None:
+        self.module.load_state_dict(state)
+
+
+def _maybe_mixup(
+    images: torch.Tensor,
+    labels: torch.Tensor,
+    mixup_cfg: dict[str, Any] | None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+    """Returns (images, labels_a, labels_b, lam). When mixup is skipped, lam==1.0 and labels_b==labels_a."""
+    if not mixup_cfg or not mixup_cfg.get("enabled", False):
+        return images, labels, labels, 1.0
+    p = float(mixup_cfg.get("p", 0.5))
+    if p <= 0.0 or torch.rand(1).item() > p:
+        return images, labels, labels, 1.0
+    alpha = float(mixup_cfg.get("alpha", 0.2))
+    if alpha <= 0.0:
+        return images, labels, labels, 1.0
+    lam = float(np.random.beta(alpha, alpha))
+    perm = torch.randperm(images.size(0), device=images.device)
+    mixed = lam * images + (1.0 - lam) * images[perm]
+    return mixed, labels, labels[perm], lam
+
+
 def train_one_epoch(
     model: torch.nn.Module,
     loader: DataLoader,
@@ -29,6 +75,8 @@ def train_one_epoch(
     amp: bool,
     scaler: torch.cuda.amp.GradScaler,
     grad_clip_norm: float = 0.0,
+    mixup_cfg: dict[str, Any] | None = None,
+    ema: ModelEMA | None = None,
 ) -> float:
     model.train()
     losses = []
@@ -37,11 +85,16 @@ def train_one_epoch(
         images = batch["image"].to(device, non_blocking=True)
         labels = batch["label"].to(device, non_blocking=True)
 
+        images, labels_a, labels_b, lam = _maybe_mixup(images, labels, mixup_cfg)
+
         optimizer.zero_grad(set_to_none=True)
 
         with torch.cuda.amp.autocast(enabled=amp):
             logits = model(images)
-            loss = criterion(logits, labels)
+            if lam < 1.0:
+                loss = lam * criterion(logits, labels_a) + (1.0 - lam) * criterion(logits, labels_b)
+            else:
+                loss = criterion(logits, labels_a)
 
         if amp:
             scaler.scale(loss).backward()
@@ -55,6 +108,9 @@ def train_one_epoch(
             if grad_clip_norm > 0:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip_norm)
             optimizer.step()
+
+        if ema is not None:
+            ema.update(model)
 
         losses.append(float(loss.item()))
 
@@ -120,6 +176,18 @@ def fit_model(
     amp = _amp_enabled(device, bool(training_cfg.get("amp", False)))
     scaler = torch.cuda.amp.GradScaler(enabled=amp)
 
+    mixup_cfg = training_cfg.get("mixup") or None
+    ema_cfg = training_cfg.get("ema") or {}
+    ema = None
+    if bool(ema_cfg.get("enabled", False)):
+        ema = ModelEMA(model, decay=float(ema_cfg.get("decay", 0.999)))
+        print(f"[INFO] EMA enabled with decay={ema.decay}")
+    if mixup_cfg and mixup_cfg.get("enabled"):
+        print(
+            f"[INFO] MixUp enabled: alpha={mixup_cfg.get('alpha', 0.2)} "
+            f"p={mixup_cfg.get('p', 0.5)}"
+        )
+
     start_epoch = 1
     best_metric = -float("inf")
     best_epoch = 0
@@ -133,6 +201,8 @@ def fit_model(
     if resume_checkpoint:
         if "model_state_dict" in resume_checkpoint:
             model.load_state_dict(resume_checkpoint["model_state_dict"])
+        if ema is not None and resume_checkpoint.get("ema_state_dict"):
+            ema.load_state_dict(resume_checkpoint["ema_state_dict"])
         if resume_checkpoint.get("optimizer_state_dict"):
             optimizer.load_state_dict(resume_checkpoint["optimizer_state_dict"])
         if scheduler is not None:
@@ -202,6 +272,8 @@ def fit_model(
             amp=amp,
             scaler=scaler,
             grad_clip_norm=grad_clip_norm,
+            mixup_cfg=mixup_cfg,
+            ema=ema,
         )
 
         val_metrics = evaluate_loader(
@@ -211,6 +283,15 @@ def fit_model(
             device=device,
             num_classes=task_spec.num_classes,
         )
+        val_metrics_ema = None
+        if ema is not None:
+            val_metrics_ema = evaluate_loader(
+                model=ema.module,
+                loader=val_loader,
+                criterion=criterion,
+                device=device,
+                num_classes=task_spec.num_classes,
+            )
 
         if scheduler is not None:
             scheduler.step()
@@ -220,12 +301,16 @@ def fit_model(
             "train_loss": train_loss,
             **{f"val_{k}": v for k, v in val_metrics.items()},
         }
+        if val_metrics_ema is not None:
+            row.update({f"val_ema_{k}": v for k, v in val_metrics_ema.items()})
         history.append(row)
 
-        current_metric = float(val_metrics.get(monitor_name, float("nan")))
+        # When EMA is on, monitor EMA metrics — those are the weights we will deploy.
+        monitor_metrics = val_metrics_ema if val_metrics_ema is not None else val_metrics
+        current_metric = float(monitor_metrics.get(monitor_name, float("nan")))
         is_improved = not math.isnan(current_metric) and current_metric > (best_metric + min_delta)
 
-        print(
+        log_line = (
             f"[Epoch {epoch}/{epochs}] "
             f"train_loss={train_loss:.4f} "
             f"val_loss={val_metrics['loss']:.4f} "
@@ -233,6 +318,13 @@ def fit_model(
             f"val_f1={val_metrics['f1']:.4f} "
             f"val_auc={val_metrics['auc']:.4f}"
         )
+        if val_metrics_ema is not None:
+            log_line += (
+                f" | ema_val_acc={val_metrics_ema['accuracy']:.4f} "
+                f"ema_val_f1={val_metrics_ema['f1']:.4f} "
+                f"ema_val_auc={val_metrics_ema['auc']:.4f}"
+            )
+        print(log_line)
 
         if is_improved:
             best_metric = current_metric
@@ -241,9 +333,10 @@ def fit_model(
         else:
             stale_epochs += 1
 
-        checkpoint = {
+        last_checkpoint = {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
+            "ema_state_dict": ema.state_dict() if ema is not None else None,
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
             "scaler_state_dict": scaler.state_dict() if amp else None,
@@ -254,12 +347,16 @@ def fit_model(
             "stale_epochs": stale_epochs,
             "history": history,
         }
-
-        torch.save(checkpoint, output_dir / "last.pt")
+        torch.save(last_checkpoint, output_dir / "last.pt")
         history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
         if is_improved:
-            torch.save(checkpoint, output_dir / "best.pt")
+            # Save the weights we'll actually deploy. With EMA on, that's the EMA snapshot
+            # under "model_state_dict" so existing eval scripts pick it up unchanged.
+            best_payload = dict(last_checkpoint)
+            if ema is not None:
+                best_payload["model_state_dict"] = ema.state_dict()
+            torch.save(best_payload, output_dir / "best.pt")
 
         if patience > 0 and stale_epochs >= patience:
             print(

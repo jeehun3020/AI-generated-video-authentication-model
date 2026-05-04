@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
         "--split",
         type=str,
         default="test",
-        choices=["train", "val", "test", "stress_real", "stress_generated"],
+        choices=["train", "val", "test", "stress_real", "stress_generated", "ff_holdout", "df_holdout"],
     )
     parser.add_argument(
         "--video-aggregation",
@@ -50,6 +50,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Optional protocol video_manifest.csv override",
+    )
+    parser.add_argument(
+        "--tta",
+        type=str,
+        default="none",
+        choices=["none", "hflip"],
+        help="Test-time augmentation. 'hflip' averages softmax over original + horizontal flip.",
     )
     return parser.parse_args()
 
@@ -72,6 +79,7 @@ def collect_predictions(
     loader: DataLoader,
     criterion: torch.nn.Module,
     device: torch.device,
+    tta: str = "none",
 ) -> tuple[np.ndarray, np.ndarray, list[str], float]:
     model.eval()
 
@@ -88,6 +96,10 @@ def collect_predictions(
             logits = model(images)
             loss = criterion(logits, labels)
             probs = torch.softmax(logits, dim=1)
+
+            if tta == "hflip":
+                logits_flip = model(torch.flip(images, dims=[-1]))
+                probs = (probs + torch.softmax(logits_flip, dim=1)) * 0.5
 
             losses.append(float(loss.item()))
             y_true_list.append(labels.cpu().numpy())
@@ -174,6 +186,7 @@ def main() -> None:
         loader=loader,
         criterion=torch.nn.CrossEntropyLoss(),
         device=device,
+        tta=args.tta,
     )
 
     frame_metrics = compute_classification_metrics(
@@ -201,18 +214,20 @@ def main() -> None:
     metrics = {
         "split": args.split,
         "video_aggregation": video_agg,
+        "tta": args.tta,
         "num_frames": int(len(y_true)),
         "num_videos": int(len(y_true_video)),
         "frame": frame_metrics,
         "video": video_metrics,
     }
 
-    print(f"[INFO] {args.split} frame metrics: {frame_metrics}")
-    print(f"[INFO] {args.split} video metrics ({video_agg}): {video_metrics}")
+    print(f"[INFO] {args.split} frame metrics (tta={args.tta}): {frame_metrics}")
+    print(f"[INFO] {args.split} video metrics ({video_agg}, tta={args.tta}): {video_metrics}")
 
     eval_dir = ensure_dir(config["paths"].get("eval_dir", "outputs/eval"))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_path = eval_dir / f"eval_{args.split}_{timestamp}.json"
+    tta_tag = "" if args.tta == "none" else f"_tta-{args.tta}"
+    out_path = eval_dir / f"eval_{args.split}{tta_tag}_{timestamp}.json"
     out_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(f"[INFO] saved evaluation: {out_path}")
 
